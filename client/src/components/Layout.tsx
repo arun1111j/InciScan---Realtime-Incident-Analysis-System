@@ -1,5 +1,5 @@
-
 import React from 'react';
+import { NavLink } from 'react-router-dom';
 import { AlertTriangle, Home, BarChart2, Video, Settings, ShieldAlert } from 'lucide-react';
 
 interface LayoutProps {
@@ -17,12 +17,12 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                 </div>
 
                 <nav className="flex-1 p-4 space-y-2">
-                    <NavItem icon={<Home />} label="Dashboard" active />
-                    <NavItem icon={<Video />} label="Live Feeds" />
-                    <NavItem icon={<AlertTriangle />} label="Incidents" />
-                    <NavItem icon={<BarChart2 />} label="Analytics" />
+                    <NavItem to="/dashboard" icon={<Home />} label="Dashboard" />
+                    <NavItem to="/feeds" icon={<Video />} label="Live Feeds" />
+                    <NavItem to="/incidents" icon={<AlertTriangle />} label="Incidents" />
+                    <NavItem to="/analytics" icon={<BarChart2 />} label="Analytics" />
                     <div className="pt-4 border-t border-gray-700">
-                        <NavItem icon={<Settings />} label="Settings" />
+                        <NavItem to="/settings" icon={<Settings />} label="Settings" />
                     </div>
                 </nav>
 
@@ -55,11 +55,19 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     );
 };
 
-const NavItem = ({ icon, label, active = false }: { icon: React.ReactNode, label: string, active?: boolean }) => (
-    <button className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-all ${active ? 'bg-red-500/10 text-red-500 border border-red-500/20' : 'text-gray-400 hover:bg-gray-800 hover:text-white'}`}>
-        <span className={active ? 'text-red-500' : 'text-gray-400'}>{icon}</span>
+const NavItem = ({ icon, label, to }: { icon: React.ReactNode, label: string, to: string }) => (
+    <NavLink
+        to={to}
+        className={({ isActive }) =>
+            `w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-all ${isActive
+                ? 'bg-red-500/10 text-red-500 border border-red-500/20'
+                : 'text-gray-400 hover:bg-gray-800 hover:text-white'
+            }`
+        }
+    >
+        <span className="text-current">{icon}</span>
         <span className="font-medium">{label}</span>
-    </button>
+    </NavLink>
 );
 
 export default Layout;

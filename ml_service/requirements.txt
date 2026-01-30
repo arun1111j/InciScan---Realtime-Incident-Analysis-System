@@ -9,4 +9,7 @@ python-socketio
 SpeechRecognition
 pydub
 pyaudio
+tensorflow-cpu
+tensorflow_hub
+scipy
 
