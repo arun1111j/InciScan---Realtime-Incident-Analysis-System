@@ -1,0 +1,27 @@
+# Dependencies
+node_modules/
+*.pyc
+__pycache__/
+
+# Environment files
+.env
+.env.local
+
+# ML Service - Large files
+ml_service/uploads/
+ml_service/outputs/
+*.mp4
+*.avi
+*.mov
+
+# Database
+*.db
+*.sqlite
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
