@@ -1,15 +1,11 @@
 fastapi
 uvicorn
+python-multipart
 opencv-python
 numpy
 ultralytics
 pydantic
 requests
-python-socketio
-SpeechRecognition
-pydub
 pyaudio
 tensorflow-cpu
-tensorflow_hub
-scipy
-
+tensorflow-hub
