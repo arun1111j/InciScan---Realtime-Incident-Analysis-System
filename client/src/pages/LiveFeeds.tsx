@@ -6,10 +6,14 @@ const LiveFeeds = () => {
     const [uploadedFile, setUploadedFile] = useState<File | null>(null);
     const [processing, setProcessing] = useState(false);
     const [analysisResult, setAnalysisResult] = useState<any>(null);
+    const [detectorType, setDetectorType] = useState('crowd');
+    const [isDragging, setIsDragging] = useState(false);
 
     const handleStartFeed = async () => {
         try {
-            await fetch('http://localhost:8000/start_feed', { method: 'POST' });
+            await fetch(`http://localhost:8000/start_feed?type=${detectorType}`, {
+                method: 'POST'
+            });
             setIsFeeding(true);
         } catch (error) {
             console.error('Failed to start feed:', error);
@@ -55,19 +59,53 @@ const LiveFeeds = () => {
         }
     };
 
+    const handleDragOver = (e: React.DragEvent) => {
+        e.preventDefault();
+        setIsDragging(true);
+    };
+
+    const handleDragLeave = () => {
+        setIsDragging(false);
+    };
+
+    const handleDrop = (e: React.DragEvent) => {
+        e.preventDefault();
+        setIsDragging(false);
+        if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+            const file = e.dataTransfer.files[0];
+            if (file.type.startsWith('video/')) {
+                setUploadedFile(file);
+                setAnalysisResult(null);
+            } else {
+                alert('Please upload a valid video file.');
+            }
+        }
+    };
+
     return (
         <div className="p-6 space-y-6">
             {/* Live Feed Section */}
             <div>
                 <div className="flex justify-between items-center mb-4">
                     <h1 className="text-2xl font-bold text-white">Live Camera Feeds</h1>
-                    <div className="flex space-x-2">
+                    <div className="flex space-x-2 items-center">
+                        <select
+                            value={detectorType}
+                            onChange={(e) => setDetectorType(e.target.value)}
+                            disabled={isFeeding}
+                            className="bg-gray-700 text-white px-3 py-2 rounded-lg border border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
+                        >
+                            <option value="crowd">Crowd Detection</option>
+                            <option value="violence">Violence Detection</option>
+                            <option value="suspicious">Suspicious Activity</option>
+                            <option value="audio">Audio Analysis</option>
+                        </select>
                         <button
                             onClick={handleStartFeed}
                             disabled={isFeeding}
                             className={`flex items-center space-x-2 px-4 py-2 rounded-lg font-medium transition-colors ${isFeeding
-                                    ? 'bg-gray-600 text-gray-400 cursor-not-allowed'
-                                    : 'bg-green-600 hover:bg-green-700 text-white'
+                                ? 'bg-gray-600 text-gray-400 cursor-not-allowed'
+                                : 'bg-green-600 hover:bg-green-700 text-white'
                                 }`}
                         >
                             <Play className="w-4 h-4" />
@@ -77,8 +115,8 @@ const LiveFeeds = () => {
                             onClick={handleStopFeed}
                             disabled={!isFeeding}
                             className={`flex items-center space-x-2 px-4 py-2 rounded-lg font-medium transition-colors ${!isFeeding
-                                    ? 'bg-gray-600 text-gray-400 cursor-not-allowed'
-                                    : 'bg-red-600 hover:bg-red-700 text-white'
+                                ? 'bg-gray-600 text-gray-400 cursor-not-allowed'
+                                : 'bg-red-600 hover:bg-red-700 text-white'
                                 }`}
                         >
                             <Square className="w-4 h-4" />
@@ -88,15 +126,24 @@ const LiveFeeds = () => {
                 </div>
 
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    <div className="bg-gray-800 rounded-xl border border-gray-700 overflow-hidden h-96 relative group">
-                        <img
-                            src="http://localhost:8000/video_feed"
-                            alt="Camera 1"
-                            className="w-full h-full object-cover"
-                            onError={(e) => {
-                                (e.target as HTMLImageElement).style.display = 'none';
-                            }}
-                        />
+                    <div className="bg-gray-900 rounded-xl border border-gray-700 overflow-hidden h-96 relative group flex items-center justify-center">
+                        {isFeeding ? (
+                            <img
+                                src={`http://localhost:8000/video_feed?t=${Date.now()}`}
+                                alt="Camera 1"
+                                className="w-full h-full object-cover"
+                                onError={(e) => {
+                                    (e.target as HTMLImageElement).style.display = 'none';
+                                }}
+                            />
+                        ) : (
+                            <div className="text-center space-y-3">
+                                <div className="w-16 h-16 bg-gray-800 rounded-full flex items-center justify-center mx-auto border border-gray-700">
+                                    <Square className="w-8 h-8 text-gray-600" />
+                                </div>
+                                <p className="text-gray-500 font-medium">Feed Offline</p>
+                            </div>
+                        )}
                         <div className="absolute bottom-4 left-4 bg-black/60 px-3 py-1 rounded text-white text-sm">Main Gate</div>
                         {isFeeding && (
                             <div className="absolute top-4 right-4 bg-red-600 px-2 py-1 rounded text-white text-xs animate-pulse">LIVE</div>
@@ -117,12 +164,21 @@ const LiveFeeds = () => {
                     {/* File Upload */}
                     <div className="flex items-center space-x-4">
                         <label className="flex-1">
-                            <div className="flex items-center justify-center w-full h-32 border-2 border-dashed border-gray-600 rounded-lg cursor-pointer hover:border-gray-500 transition-colors">
+                            <div
+                                onDragOver={handleDragOver}
+                                onDragLeave={handleDragLeave}
+                                onDrop={handleDrop}
+                                className={`flex items-center justify-center w-full h-40 border-2 border-dashed rounded-lg cursor-pointer transition-all ${isDragging
+                                    ? 'border-blue-500 bg-blue-500/10'
+                                    : 'border-gray-600 hover:border-gray-500 bg-gray-900/50'
+                                    }`}
+                            >
                                 <div className="text-center">
-                                    <Upload className="w-8 h-8 mx-auto mb-2 text-gray-400" />
-                                    <p className="text-sm text-gray-400">
-                                        {uploadedFile ? uploadedFile.name : 'Click to upload video (MP4, AVI, MOV)'}
+                                    <Upload className={`w-10 h-10 mx-auto mb-2 transition-colors ${isDragging ? 'text-blue-400' : 'text-gray-400'}`} />
+                                    <p className={`text-sm font-medium ${isDragging ? 'text-blue-400' : 'text-gray-400'}`}>
+                                        {uploadedFile ? uploadedFile.name : 'Drag & drop video here or click to browse'}
                                     </p>
+                                    <p className="text-xs text-gray-500 mt-1">Supports MP4, AVI, MOV</p>
                                 </div>
                             </div>
                             <input
@@ -140,8 +196,8 @@ const LiveFeeds = () => {
                             onClick={handleAnalyzeVideo}
                             disabled={processing}
                             className={`w-full flex items-center justify-center space-x-2 px-4 py-3 rounded-lg font-medium transition-colors ${processing
-                                    ? 'bg-gray-600 text-gray-400 cursor-wait'
-                                    : 'bg-blue-600 hover:bg-blue-700 text-white'
+                                ? 'bg-gray-600 text-gray-400 cursor-wait'
+                                : 'bg-blue-600 hover:bg-blue-700 text-white'
                                 }`}
                         >
                             <span>{processing ? 'Analyzing Video...' : 'Analyze Video'}</span>

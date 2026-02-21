@@ -1,0 +1,91 @@
+sequenceDiagram
+    participant U as User/Browser
+    participant C as React Client<br/>(port 5173)
+    participant S as Node Server<br/>(port 5000)
+    participant ML as ML Service FastAPI<br/>(port 8000)
+    participant DB as PostgreSQL<br/>(Prisma)
+    participant IO as Socket.IO
+
+    %% ── 1. SERVER STARTUP ──────────────────────────────────────
+    Note over S,ML: Server Startup
+    S->>ML: spawn python main.py (child_process)
+    ML-->>S: stdout: "ML Service Running"
+
+    %% ── 2. PAGE LOAD ───────────────────────────────────────────
+    Note over U,DB: Page Load — Fetch Incidents
+    U->>C: Open Dashboard
+    C->>S: GET /api/incidents
+    activate S
+    S->>DB: prisma.incident.findMany()
+    DB-->>S: incidents[]
+    S-->>C: 200 JSON incidents[]
+    deactivate S
+    C-->>U: Render incident list & map
+
+    %% ── 3. SOCKET.IO CONNECTION ────────────────────────────────
+    Note over C,IO: Real-time Setup
+    C->>IO: socket.connect()
+    IO-->>C: connected (socket.id)
+
+    %% ── 4. INCIDENT REPORTING WITH VIDEO ───────────────────────
+    Note over U,IO: Incident Reporting Flow
+    U->>C: Fill form + upload video file
+    U->>C: Click "Analyze & Submit Report"
+    activate C
+    C->>S: POST /api/incidents/report<br/>(multipart FormData: video, source, location, description)
+    activate S
+    S->>S: Multer saves video to /uploads/
+
+    alt ML Service Available
+        S->>ML: POST /analyze_video (FormData: video)
+        activate ML
+        ML->>ML: Save to /uploads/
+        ML->>ML: VideoAnalyzer.analyze_video()
+        Note over ML: Runs CrowdDetector,<br/>ViolenceDetector,<br/>SuspiciousDetector,<br/>AudioDetector per frame
+        ML->>ML: Write annotated video to /outputs/
+        ML-->>S: {detections[], total_frames, output_video, download_url}
+        deactivate ML
+    else ML Service Unavailable
+        S-->>S: mlAnalysis = {detections:[], total_frames:0}
+        Note over S: Continues with default<br/>severity = medium
+    end
+
+    Note over S: Classify severity:<br/>Weapon→critical, Violence→critical,<br/>Crowd→high, else→medium
+    S->>DB: prisma.incident.create({type, severity, confidence, ...})
+    DB-->>S: incident record
+    S->>IO: io.emit("new_incident", incident)
+    IO-->>C: new_incident event → update UI
+    S-->>C: 200 {incidentId, type, severity, detections[], output_video, download_url}
+    deactivate S
+    C-->>U: Show Analysis Report + Download link
+    deactivate C
+
+    %% ── 5. LIVE FEED ────────────────────────────────────────────
+    Note over U,ML: Live Camera Feed Flow
+    U->>C: Click "Start Feed"
+    C->>ML: POST /start_feed?source=0&type=crowd
+    ML-->>C: {status: "Feed Started"}
+    C->>ML: GET /video_feed (MJPEG stream via img src)
+    activate ML
+    ML->>ML: cv2.VideoCapture(0) — capture frames
+    loop While streaming
+        ML-->>C: MJPEG frame boundary
+        C-->>U: Render live video frame
+    end
+    U->>C: Click "Stop Feed"
+    C->>ML: POST /stop_feed
+    ML-->>C: {status: "Feed Stopped"}
+    deactivate ML
+
+    %% ── 6. RESOLVE INCIDENT ─────────────────────────────────────
+    Note over U,IO: Resolve Incident Flow
+    U->>C: Click "Resolve" on incident
+    C->>S: PATCH /api/incidents/:id/resolve
+    activate S
+    S->>DB: prisma.incident.update({status: "resolved"})
+    DB-->>S: updated incident
+    S->>IO: io.emit("incident_updated", incident)
+    IO-->>C: incident_updated event → update UI
+    S-->>C: 200 {id, status: "resolved"}
+    deactivate S
+    C-->>U: Incident marked as resolved

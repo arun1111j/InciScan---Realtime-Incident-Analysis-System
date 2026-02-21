@@ -112,8 +112,8 @@ const ReportIncidentModal: React.FC<ReportIncidentModalProps> = ({ isOpen, onClo
                                 </label>
                                 <div
                                     className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${dragActive
-                                            ? 'border-red-500 bg-red-500/10'
-                                            : 'border-gray-600 hover:border-gray-500'
+                                        ? 'border-red-500 bg-red-500/10'
+                                        : 'border-gray-600 hover:border-gray-500'
                                         }`}
                                     onDragEnter={handleDrag}
                                     onDragOver={handleDrag}
@@ -254,8 +254,8 @@ const ReportIncidentModal: React.FC<ReportIncidentModalProps> = ({ isOpen, onClo
                                     <div className="flex justify-between">
                                         <span className="text-gray-400">Severity:</span>
                                         <span className={`font-medium ${analysisResult.severity === 'critical' ? 'text-red-400' :
-                                                analysisResult.severity === 'high' ? 'text-orange-400' :
-                                                    'text-yellow-400'
+                                            analysisResult.severity === 'high' ? 'text-orange-400' :
+                                                'text-yellow-400'
                                             }`}>
                                             {analysisResult.severity || 'N/A'}
                                         </span>
@@ -278,6 +278,32 @@ const ReportIncidentModal: React.FC<ReportIncidentModalProps> = ({ isOpen, onClo
                                         ))}
                                     </div>
                                 </div>
+                            )}
+
+                            {/* Video Preview */}
+                            {analysisResult.output_video && (
+                                <div className="bg-gray-900 rounded-lg p-4 border border-gray-700">
+                                    <h3 className="text-lg font-semibold text-white mb-3">Analyzed Video Preview</h3>
+                                    <video
+                                        src={`http://localhost:8000${analysisResult.output_video}`}
+                                        controls
+                                        className="w-full rounded-lg"
+                                        style={{ maxHeight: '300px' }}
+                                    >
+                                        Your browser does not support the video tag.
+                                    </video>
+                                </div>
+                            )}
+
+                            {/* Download Button */}
+                            {analysisResult.download_url && (
+                                <a
+                                    href={`http://localhost:8000${analysisResult.download_url}`}
+                                    className="flex items-center justify-center space-x-2 w-full px-4 py-3 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium transition-colors"
+                                >
+                                    <Upload className="w-4 h-4 rotate-180" />
+                                    <span>Download Annotated Video</span>
+                                </a>
                             )}
 
                             <button

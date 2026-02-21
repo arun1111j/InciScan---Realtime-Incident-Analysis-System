@@ -168,7 +168,7 @@ router.post('/', async (req, res) => {
         const { description, latitude, longitude, camera_id, type, severity, confidence } = req.body;
 
         // Use provided analysis (ML) or simulate (Manual)
-        const analysis = (type && severity) ? { type, severity, confidence: confidence || 1.0 } : analyzeIncident(description || '');
+        const analysis = (type && severity) ? { type, severity, confidence: confidence || 1.0 } : analyzeIncident(description || '', { latitude: parseFloat(latitude), longitude: parseFloat(longitude) });
 
         let incident;
         try {

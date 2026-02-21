@@ -75,13 +75,18 @@ def generate_frames():
         if not success:
             break
             
-        # Run active detector logic here (simplified integration)
-        # Ideally, we'd modify detectors to accept a frame and return an annotated frame + alerts
-        # For now, we just stream the raw feed to prove connection, 
-        # or we can call specific detector logic if we refactor them to return frames.
-        # Let's just stream the raw video for now to get the "Live Feed" working.
+        # Run active detector logic
+        annotated_frame = frame
+        if stream_state.active_detector:
+            annotated_frame, detections = stream_state.active_detector.detect(frame)
+            if len(detections) > 0:
+                print(f"[ML Debug] Detections found: {len(detections)}")
+        else:
+            # Fallback drawing to show pipeline is alive
+            cv2.putText(annotated_frame, "NO ACTIVE DETECTOR", (10, 30), 
+                       cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
         
-        ret, buffer = cv2.imencode('.jpg', frame)
+        ret, buffer = cv2.imencode('.jpg', annotated_frame)
         frame_bytes = buffer.tobytes()
         yield (b'--frame\r\n'
                b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n')
@@ -98,7 +103,9 @@ def start_feed(source: str = "0", type: str = "crowd"):
     """Starts the video feed generation."""
     with stream_state.lock:
         stream_state.source = source
+        stream_state.active_detector = detectors.get(type.lower())
         stream_state.is_running = True
+    print(f"[ML Service] Feed Started. Type: {type}, Detector: {stream_state.active_detector}")
     return {"status": "Feed Started", "source": source, "type": type}
 
 @app.post("/stop_feed")

@@ -49,6 +49,19 @@ class AudioDetector(BaseDetector):
             reader = csv.DictReader(csvfile)
             return [row['display_name'] for row in reader]
 
+    def detect(self, frame):
+        """
+        Analyze audio (concurrently or sequentially) and overlay on frame.
+        Since this is an Audio detector, we just return the frame but could 
+        add text overlays if a sound event was recently detected.
+        """
+        annotated_frame = frame.copy()
+        # In a real implementation, we'd have a buffer of recent sound events
+        # For now, just add a 'Listening...' tag
+        cv2.putText(annotated_frame, "Audio Detection: Listening...", (10, 60), 
+                   cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 0), 2)
+        return annotated_frame, []
+
     def process_stream(self, source):
         if not TF_AVAILABLE or not hasattr(self, 'model') or self.model is None:
             print("Audio detection unavailable due to missing dependencies or model load failure.")

@@ -4,65 +4,118 @@ import requests
 import numpy as np
 from ultralytics import YOLO
 from .base_detector import BaseDetector
+from model_manager import ModelManager
 
 class ViolenceDetector(BaseDetector):
     def __init__(self):
         super().__init__()
         self.backend_url = "http://localhost:5000/api/incidents"
         
-        # NOTE: Ideally use a model trained on "Real Life Violence" dataset
-        # If user downloads 'violence.pt', we use it. Otherwise fallback to standard YOLOv8n
-        # and checking for aggressive weapons (Knife, Bat, etc.)
-        try:
-             # Attempt to load specialized model
-             # User should put 'violence.pt' in the root or detectors folder
-             self.model = YOLO("violence.pt")
-             self.specialized_model = True
-             print("Loaded Custom Violence Model (violence.pt)")
-        except:
-             print("Custom 'violence.pt' not found. Falling back to standard YOLOv8n + Weapon Detection.")
-             self.model = YOLO("yolov8n.pt") 
-             self.specialized_model = False
+        # Use Shared Model Manager
+        manager = ModelManager()
+        self.model = manager.get_yolo_model()
+        self.specialized_model = manager.has_violence()
+        
+        if self.specialized_model:
+            self.violence_model = manager.get_violence_model()
+            print("ViolenceDetector: Using specialized violence model.")
+        else:
+            print("ViolenceDetector: Using standard YOLOv8n + Weapon Detection fallback.")
              
         # COCO Classes: 43: knife, 34: baseball bat, 76: scissors
         self.weapon_classes = [43, 34] 
+        self.frame_skip = 3 # Process every 3rd frame
+        self.location = {"latitude": 40.7128, "longitude": -74.006} # Default
+
+    def set_location(self, lat, lng):
+        self.location["latitude"] = lat
+        self.location["longitude"] = lng
+
+    def detect(self, frame):
+        """
+        Analyze a single frame for violence/weapons.
+        Returns: annotated_frame, detections list
+        """
+        annotated_frame = frame.copy()
+        detections = []
+        
+        # Add Detector Identity Overlay
+        cv2.putText(annotated_frame, "VIOLENCE DETECTOR ACTIVE", (10, 30), 
+                   cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
+
+        # Run Inference
+        if self.specialized_model:
+            results = self.violence_model(frame, conf=0.25, verbose=False)
+            for r in results:
+                for box in r.boxes:
+                    cls_id = int(box.cls[0])
+                    conf = float(box.conf[0])
+                    label = self.violence_model.names[cls_id]
+                    
+                    if label.lower() in ['violence', 'fight'] and conf > 0.6:
+                        print(f"FIGHT DETECTED: {label} ({conf:.2f})")
+                        x1, y1, x2, y2 = map(int, box.xyxy[0])
+                        cv2.rectangle(annotated_frame, (x1, y1), (x2, y2), (255, 0, 0), 3)
+                        cv2.putText(annotated_frame, f'VIOLENCE ({conf:.2f})', (x1, y1-10), 
+                                   cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 0, 0), 2)
+                        
+                        detections.append({
+                            "type": "Violence",
+                            "description": f"Violent altercation detected: {label}",
+                            "confidence": conf,
+                            "severity": "critical"
+                        })
+                        self.send_alert("Violent Altercation", f"Model detected {label}")
+        else:
+            # Fallback Standard Logic (Weapon Detection)
+            results = self.model(frame, classes=[0] + self.weapon_classes, verbose=False)
+            
+            if len(results) > 0:
+                for box in results[0].boxes:
+                    cls_id = int(box.cls[0])
+                    conf = float(box.conf[0])
+                    
+                    if cls_id in self.weapon_classes:
+                        print(f"Weapon Detected! Class ID: {cls_id}")
+                        x1, y1, x2, y2 = map(int, box.xyxy[0])
+                        cv2.rectangle(annotated_frame, (x1, y1), (x2, y2), (0, 0, 255), 3)
+                        cv2.putText(annotated_frame, f'WEAPON ({conf:.2f})', (x1, y1-10), 
+                                   cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
+                        
+                        detections.append({
+                            "type": "Weapon Detected",
+                            "description": "High probability of violence: Weapon sighted",
+                            "confidence": conf,
+                            "severity": "critical"
+                        })
+                        self.send_alert("Weapon Detected", "High probability of violence: Weapon sighted")
+        
+        return annotated_frame, detections
 
     def process_stream(self, source):
         try:
             cap_source = 0 if source == "0" else source
             cap = cv2.VideoCapture(cap_source)
+            if not cap.isOpened():
+                print(f"Error: Could not open video source {source}")
+                return
+
+            frame_count = 0
             
             while cap.isOpened():
                 success, frame = cap.read()
                 if not success:
                     break
+                
+                frame_count += 1
+                
+                # Frame Skipping
+                if frame_count % self.frame_skip != 0:
+                    continue
 
-                # Run Inference
-                # If specialized, it likely has 2 classes: 0: Non-Violence, 1: Violence
-                # If standard, we check for weapons
-                if self.specialized_model:
-                    results = self.model(frame, verbose=False)
-                    # Assuming 'violence' is class 1 (or by name)
-                    for r in results:
-                        for box in r.boxes:
-                            cls_id = int(box.cls[0])
-                            conf = float(box.conf[0])
-                            label = self.model.names[cls_id]
-                            
-                            if label.lower() in ['violence', 'fight'] and conf > 0.6:
-                                print(f"FIGHT DETECTED: {label} ({conf:.2f})")
-                                self.send_alert("Violent Altercation", f"Model detected {label}")
-                else:
-                    # Fallback Standard Logic
-                    results = self.model(frame, classes=[0] + self.weapon_classes, verbose=False)
-                    detected_config = results[0].boxes.cls.cpu().tolist()
-                    weapons_found = [cls_id for cls_id in detected_config if cls_id in self.weapon_classes]
-
-                    if weapons_found:
-                        print(f"Weapon Detected! Class IDs: {weapons_found}")
-                        self.send_alert("Weapon Detected", "High probability of violence: Weapon sighted")
-
-                time.sleep(0.1) 
+                # Use detect method
+                _, _ = self.detect(frame)
+                # time.sleep(0.1) # Removed sleep, using frame skipping
 
             cap.release()
         except Exception as e:
@@ -74,8 +127,8 @@ class ViolenceDetector(BaseDetector):
         payload = {
             "type": "Violence",
             "description": description,
-            "latitude": 40.7128,
-            "longitude": -74.006,
+            "latitude": self.location["latitude"],
+            "longitude": self.location["longitude"],
             "confidence": 0.85, # Simplification
             "severity": "critical",
             "status": "verified"
