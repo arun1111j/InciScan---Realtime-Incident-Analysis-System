@@ -10,5 +10,4 @@ ultralytics
 pydantic
 requests
 pyaudio
-tensorflow-cpu
-tensorflow-hub
+# tensorflow libraries are handled separately in the Dockerfile to prevent GPU bloat

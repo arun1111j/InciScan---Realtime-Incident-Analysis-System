@@ -29,18 +29,20 @@ WORKDIR /app
 
 # Install ML Service Dependencies
 COPY ml_service/requirements.txt ./ml_service/
-# Install Torch CPU first to prevent other packages from pulling GPU versions
-RUN pip install --no-cache-dir torch torchvision --index-url https://download.pytorch.org/whl/cpu \
+# Pre-install TensorFlow CPU to block larger GPU versions
+RUN pip install --no-cache-dir tensorflow-cpu tensorflow-hub \
+    && pip install --no-cache-dir torch torchvision --index-url https://download.pytorch.org/whl/cpu \
     && pip install --no-cache-dir -r ml_service/requirements.txt
 
 # Install Backend Dependencies
 COPY server/package*.json ./server/
 WORKDIR /app/server
-RUN npm install --omit=dev
+# Use npm install to include devDependencies (like typescript) for the build
+RUN npm install
 COPY server/prisma ./prisma
 RUN npx prisma generate
 COPY server/ ./
-RUN npm run build
+RUN npm run build && npm prune --omit=dev
 
 # Copy Source Code
 WORKDIR /app
