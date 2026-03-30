@@ -19,8 +19,6 @@
     "@types/multer": "^2.0.0",
     "@types/node": "^25.0.10",
     "@types/node-fetch": "^2.6.13",
-    "form-data": "^4.0.5",
-    "node-fetch": "^2.7.0",
     "nodemon": "^3.1.11",
     "prisma": "^5.22.0",
     "ts-node": "^10.9.2",
@@ -33,6 +31,8 @@
     "express": "^5.2.1",
     "http-proxy-middleware": "^3.0.5",
     "multer": "^2.0.2",
+    "node-fetch": "^2.7.0",
+    "form-data": "^4.0.5",
     "pg": "^8.17.2",
     "socket.io": "^4.8.3"
   }
