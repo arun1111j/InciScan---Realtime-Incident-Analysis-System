@@ -45,7 +45,7 @@ app.get('/api/health', (req: Request, res: Response) => {
 });
 
 // Handle SPA routing - send index.html for all non-API routes
-app.get('(.*)', (req: Request, res: Response) => {
+app.get('/:any*', (req: Request, res: Response) => {
     if (req.path.startsWith('/api')) return res.status(404).json({ error: 'Not Found' });
     res.sendFile(path.join(clientPath, 'index.html'));
 });
