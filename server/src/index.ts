@@ -45,8 +45,8 @@ app.get('/api/health', (req: Request, res: Response) => {
 });
 
 // Handle SPA routing - send index.html for all non-API routes
-app.get('/:any*', (req: Request, res: Response) => {
-    if (req.path.startsWith('/api')) return res.status(404).json({ error: 'Not Found' });
+// Using a regex to avoid path-to-regexp string parsing issues in Express 5
+app.get(/^(?!\/api).+/, (req: Request, res: Response) => {
     res.sendFile(path.join(clientPath, 'index.html'));
 });
 
