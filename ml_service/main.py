@@ -27,16 +27,40 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Initialize Video Analyzer
+video_analyzer = VideoAnalyzer()
+
+class MonitorDetector:
+    def __init__(self, visual_detectors):
+        self.detectors = visual_detectors
+
+    def detect(self, frame):
+        all_detections = []
+        annotated_frame = frame.copy()
+        for name, detector in self.detectors.items():
+            try:
+                annotated_frame, dets = detector.detect(annotated_frame)
+                all_detections.extend(dets)
+            except Exception as e:
+                print(f"Error in {name} detector inside Monitor: {e}")
+        return annotated_frame, all_detections
+
 # Initialize Detectors
-detectors = {
+base_detectors = {
     "crowd": CrowdDetector(),
     "violence": ViolenceDetector(),
     "suspicious": SuspiciousDetector(),
     "audio": AudioDetector()
 }
 
-# Initialize Video Analyzer
-video_analyzer = VideoAnalyzer()
+detectors = {
+    **base_detectors,
+    "monitor": MonitorDetector({
+        "crowd": base_detectors["crowd"],
+        "violence": base_detectors["violence"],
+        "suspicious": base_detectors["suspicious"]
+    })
+}
 
 # Setup directories for video processing
 UPLOAD_DIR = Path("uploads")
@@ -53,6 +77,8 @@ class StreamState:
         self.active_detector = None
         self.source = None
         self.is_running = False
+        self.session_detections = []
+        self.snapshot_url = None
         self.lock = threading.Lock()
 
 stream_state = StreamState()
@@ -81,6 +107,23 @@ def generate_frames():
             annotated_frame, detections = stream_state.active_detector.detect(frame)
             if len(detections) > 0:
                 print(f"[ML Debug] Detections found: {len(detections)}")
+                current_time = time.strftime("%Y-%m-%d %H:%M:%S")
+                
+                # Save snapshot for the first or latest detection in this session
+                try:
+                    snapshot_filename = "session_snapshot.jpg"
+                    snapshot_path = OUTPUT_DIR / snapshot_filename
+                    # Resize to reduce PDF processing load
+                    resized_frame = cv2.resize(annotated_frame, (640, 480))
+                    cv2.imwrite(str(snapshot_path), resized_frame)
+                except Exception as e:
+                    print(f"Failed to save snapshot: {e}")
+
+                with stream_state.lock:
+                    stream_state.snapshot_url = f"http://localhost:8000/outputs/{snapshot_filename}?t={int(time.time())}"
+                    for d in detections:
+                        d['timestamp'] = current_time
+                    stream_state.session_detections.extend(detections)
         else:
             # Fallback drawing to show pipeline is alive
             cv2.putText(annotated_frame, "NO ACTIVE DETECTOR", (10, 30), 
@@ -105,6 +148,8 @@ def start_feed(source: str = "0", type: str = "crowd"):
         stream_state.source = source
         stream_state.active_detector = detectors.get(type.lower())
         stream_state.is_running = True
+        stream_state.session_detections = []  # Clear previous session
+        stream_state.snapshot_url = None
     print(f"[ML Service] Feed Started. Type: {type}, Detector: {stream_state.active_detector}")
     return {"status": "Feed Started", "source": source, "type": type}
 
@@ -114,6 +159,16 @@ def stop_feed():
     with stream_state.lock:
         stream_state.is_running = False
     return {"status": "Feed Stopped"}
+
+@app.get("/session_report")
+def session_report():
+    """Returns the detections collected during the current/last live feed session."""
+    with stream_state.lock:
+        # Return a copy to avoid mutation issues during serialization
+        return {
+            "detections": list(stream_state.session_detections),
+            "snapshot_url": stream_state.snapshot_url
+        }
 
 @app.get("/video_feed")
 def video_feed():

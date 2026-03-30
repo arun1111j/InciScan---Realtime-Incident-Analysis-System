@@ -1,13 +1,14 @@
 import React, { useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { useNavigate, Link } from 'react-router-dom';
-import { ShieldAlert } from 'lucide-react';
+import { ShieldAlert, Eye, EyeOff } from 'lucide-react';
 
 const SignUp = () => {
     const navigate = useNavigate();
     const [loading, setLoading] = useState(false);
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
+    const [showPassword, setShowPassword] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
     const handleSignUp = async (e: React.FormEvent) => {
@@ -15,16 +16,20 @@ const SignUp = () => {
         setLoading(true);
         setError(null);
 
-        const { error } = await supabase.auth.signUp({
+        const { data, error } = await supabase.auth.signUp({
             email,
             password,
         });
 
         if (error) {
             setError(error.message);
+        } else if (data.session) {
+            // Auto login is active (email confirmation is disabled in Supabase)
+            alert('Registration successful! Logging you in...');
+            navigate('/');
         } else {
-            // Check email for confirmation or auto-login
-            alert('Registration successful! Please check your email for confirmation link if enabled, or sign in.');
+            // Email confirmation is required
+            alert('Registration successful! Please check your email for the confirmation link.');
             navigate('/login');
         }
         setLoading(false);
@@ -59,14 +64,23 @@ const SignUp = () => {
                     </div>
                     <div>
                         <label className="block text-sm font-medium text-gray-300 mb-1">Password</label>
-                        <input
-                            type="password"
-                            required
-                            className="w-full px-4 py-3 bg-gray-900 border border-gray-700 rounded-lg text-white focus:ring-2 focus:ring-red-500 focus:border-transparent outline-none transition-all"
-                            placeholder="••••••••"
-                            value={password}
-                            onChange={(e) => setPassword(e.target.value)}
-                        />
+                        <div className="relative">
+                            <input
+                                type={showPassword ? 'text' : 'password'}
+                                required
+                                className="w-full px-4 py-3 bg-gray-900 border border-gray-700 rounded-lg text-white focus:ring-2 focus:ring-red-500 focus:border-transparent outline-none transition-all pr-12"
+                                placeholder="••••••••"
+                                value={password}
+                                onChange={(e) => setPassword(e.target.value)}
+                            />
+                            <button
+                                type="button"
+                                onClick={() => setShowPassword(!showPassword)}
+                                className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-300 transition-colors focus:outline-none"
+                            >
+                                {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                            </button>
+                        </div>
                     </div>
 
                     <button

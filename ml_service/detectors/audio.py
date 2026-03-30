@@ -25,6 +25,7 @@ class AudioDetector(BaseDetector):
 
         # YAMNet Model
         print("Loading YAMNet Model...")
+        self.class_names = []
         try:
             self.model = hub.load('https://tfhub.dev/google/yamnet/1')
             self.class_map_path = self.model.class_map_path().numpy().decode('utf-8')

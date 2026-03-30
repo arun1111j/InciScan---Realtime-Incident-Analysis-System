@@ -1,0 +1,15 @@
+node_modules
+client/node_modules
+server/node_modules
+ml_service/__pycache__
+ml_service/outputs/*
+ml_service/uploads/*
+server/uploads/*
+client/dist
+server/dist
+.git
+.env
+Dockerfile
+docker-compose.yml
+*.pt
+!ml_service/yolov8n.pt

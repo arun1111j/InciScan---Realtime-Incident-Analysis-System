@@ -62,7 +62,7 @@ router.get('/', async (req, res) => {
 // POST report incident with video
 router.post('/report', upload.single('video'), async (req, res) => {
     try {
-        const { source, location, description } = req.body;
+        const { source, location, description, latitude, longitude } = req.body;
         const videoFile = req.file;
 
         if (!videoFile) {
@@ -119,8 +119,8 @@ router.post('/report', upload.single('video'), async (req, res) => {
             incident = await prisma.incident.create({
                 data: {
                     description: description || `Incident reported from ${source}`,
-                    latitude: 40.7128, // Default coordinates - could be enhanced with GPS
-                    longitude: -74.006,
+                    latitude: latitude ? parseFloat(latitude) : 40.7128,
+                    longitude: longitude ? parseFloat(longitude) : -74.006,
                     camera_id: source || 'MANUAL',
                     type: incidentType,
                     severity: severity,
@@ -135,8 +135,8 @@ router.post('/report', upload.single('video'), async (req, res) => {
                 type: incidentType,
                 severity: severity,
                 confidence: confidence,
-                latitude: 40.7128,
-                longitude: -74.006,
+                latitude: latitude ? parseFloat(latitude) : 40.7128,
+                longitude: longitude ? parseFloat(longitude) : -74.006,
                 status: 'verified',
                 timestamp: new Date()
             };

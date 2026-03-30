@@ -127,7 +127,7 @@ const Dashboard = () => {
 
     useEffect(() => {
         // Fetch initial data
-        fetch('http://localhost:5000/api/incidents')
+        fetch('/api/incidents')
             .then(res => res.json())
             .then(data => {
                 // Ensure data is array (fallback if error)
@@ -148,7 +148,7 @@ const Dashboard = () => {
             })
             .catch(err => console.error('Failed to fetch incidents:', err));
 
-        const socket = io('http://localhost:5000');
+        const socket = io(); // Connects to the same origin in production
 
         socket.on('connect', () => {
             console.log('Connected to InciScan socket server');
@@ -243,13 +243,13 @@ const Dashboard = () => {
                         {viewMode === 'feed' && (
                             <div className="flex space-x-2 mr-4">
                                 <button
-                                    onClick={() => fetch('http://localhost:8000/start_feed', { method: 'POST' }).catch(console.error)}
+                                    onClick={() => fetch('/ml/start_feed', { method: 'POST' }).catch(console.error)}
                                     className="px-3 py-1 text-xs rounded bg-green-600 text-white hover:bg-green-700"
                                 >
                                     Start Feed
                                 </button>
                                 <button
-                                    onClick={() => fetch('http://localhost:8000/stop_feed', { method: 'POST' }).catch(console.error)}
+                                    onClick={() => fetch('/ml/stop_feed', { method: 'POST' }).catch(console.error)}
                                     className="px-3 py-1 text-xs rounded bg-gray-600 text-white hover:bg-gray-700"
                                 >
                                     Stop Feed
@@ -294,7 +294,7 @@ const Dashboard = () => {
                         <div className="w-full h-full bg-black flex items-center justify-center">
                             {/* Live ML Feed */}
                             <img
-                                src="http://localhost:8000/video_feed?source=0"
+                                src="/ml/video_feed?source=0"
                                 alt="Live Feed"
                                 className="w-full h-full object-contain"
                                 onError={(e) => {
@@ -345,7 +345,7 @@ const Dashboard = () => {
                 onResolve={async (id) => {
                     console.log('Resolving incident:', id);
                     try {
-                        const response = await fetch(`http://localhost:5000/api/incidents/${id}/resolve`, {
+                        const response = await fetch(`/api/incidents/${id}/resolve`, {
                             method: 'PATCH',
                             headers: {
                                 'Content-Type': 'application/json'

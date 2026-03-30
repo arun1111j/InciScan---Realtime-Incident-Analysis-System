@@ -14,6 +14,30 @@ const ReportIncidentModal: React.FC<ReportIncidentModalProps> = ({ isOpen, onClo
     const [analyzing, setAnalyzing] = useState(false);
     const [analysisResult, setAnalysisResult] = useState<any>(null);
     const [dragActive, setDragActive] = useState(false);
+    const [lat, setLat] = useState<number | null>(null);
+    const [lng, setLng] = useState<number | null>(null);
+    const [locationSetting, setLocationSetting] = useState(false);
+
+    const handleGetLocation = () => {
+        setLocationSetting(true);
+        if ('geolocation' in navigator) {
+            navigator.geolocation.getCurrentPosition(
+                (position) => {
+                    setLat(position.coords.latitude);
+                    setLng(position.coords.longitude);
+                    setLocationSetting(false);
+                },
+                (error) => {
+                    console.error('Error getting location:', error);
+                    alert('Could not get actual location. Please check browser permissions.');
+                    setLocationSetting(false);
+                }
+            );
+        } else {
+            alert('Geolocation is not supported by your browser');
+            setLocationSetting(false);
+        }
+    };
 
     const handleDrag = (e: React.DragEvent) => {
         e.preventDefault();
@@ -60,9 +84,13 @@ const ReportIncidentModal: React.FC<ReportIncidentModalProps> = ({ isOpen, onClo
         formData.append('source', cameraSource);
         formData.append('location', location);
         formData.append('description', description);
+        if (lat !== null && lng !== null) {
+            formData.append('latitude', lat.toString());
+            formData.append('longitude', lng.toString());
+        }
 
         try {
-            const response = await fetch('http://localhost:5000/api/incidents/report', {
+            const response = await fetch('/api/incidents/report', {
                 method: 'POST',
                 body: formData,
             });
@@ -82,13 +110,15 @@ const ReportIncidentModal: React.FC<ReportIncidentModalProps> = ({ isOpen, onClo
         setAnalysisResult(null);
         setLocation('');
         setDescription('');
+        setLat(null);
+        setLng(null);
         onClose();
     };
 
     if (!isOpen) return null;
 
     return (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-[9999] p-4">
             <div className="bg-gray-800 rounded-2xl border border-gray-700 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
                 {/* Header */}
                 <div className="flex justify-between items-center p-6 border-b border-gray-700">
@@ -183,10 +213,20 @@ const ReportIncidentModal: React.FC<ReportIncidentModalProps> = ({ isOpen, onClo
 
                             {/* Location */}
                             <div>
-                                <label className="block text-sm font-medium text-gray-300 mb-2">
-                                    <MapPin className="w-4 h-4 inline mr-2" />
-                                    Location (Optional)
-                                </label>
+                                <div className="flex justify-between items-center mb-2">
+                                    <label className="block text-sm font-medium text-gray-300">
+                                        <MapPin className="w-4 h-4 inline mr-2" />
+                                        Location (Optional)
+                                    </label>
+                                    <button
+                                        type="button"
+                                        onClick={handleGetLocation}
+                                        disabled={locationSetting || lat !== null}
+                                        className="text-xs flex items-center bg-gray-700 hover:bg-gray-600 text-gray-300 px-3 py-1 rounded transition-colors disabled:opacity-50"
+                                    >
+                                        {locationSetting ? 'Getting...' : (lat !== null ? '✓ Location Captured' : '📍 Use Current Location')}
+                                    </button>
+                                </div>
                                 <input
                                     type="text"
                                     value={location}
@@ -285,7 +325,7 @@ const ReportIncidentModal: React.FC<ReportIncidentModalProps> = ({ isOpen, onClo
                                 <div className="bg-gray-900 rounded-lg p-4 border border-gray-700">
                                     <h3 className="text-lg font-semibold text-white mb-3">Analyzed Video Preview</h3>
                                     <video
-                                        src={`http://localhost:8000${analysisResult.output_video}`}
+                                        src={`/ml${analysisResult.output_video}`}
                                         controls
                                         className="w-full rounded-lg"
                                         style={{ maxHeight: '300px' }}
@@ -298,7 +338,7 @@ const ReportIncidentModal: React.FC<ReportIncidentModalProps> = ({ isOpen, onClo
                             {/* Download Button */}
                             {analysisResult.download_url && (
                                 <a
-                                    href={`http://localhost:8000${analysisResult.download_url}`}
+                                    href={`/ml${analysisResult.download_url}`}
                                     className="flex items-center justify-center space-x-2 w-full px-4 py-3 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium transition-colors"
                                 >
                                     <Upload className="w-4 h-4 rotate-180" />

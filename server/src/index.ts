@@ -5,6 +5,8 @@ import { createServer } from 'http';
 import { Server } from 'socket.io';
 import { spawn, ChildProcess } from 'child_process';
 import path from 'path';
+import fs from 'fs';
+import { createProxyMiddleware } from 'http-proxy-middleware';
 
 dotenv.config();
 
@@ -22,10 +24,30 @@ import incidentRoutes from './routes/incidents';
 app.use(cors());
 app.use(express.json());
 
+// Proxy requests to ML Service
+app.use('/ml', createProxyMiddleware({
+    target: 'http://localhost:8000',
+    changeOrigin: true,
+    pathRewrite: {
+        '^/ml': '', // remove /ml prefix when sending to FastAPI
+    },
+    ws: true, // proxy websockets if needed
+}));
+
 app.use('/api/incidents', incidentRoutes);
 
-app.get('/', (req: Request, res: Response) => {
-    res.send('InciScan API is running');
+// Serve Static Frontend files in Production
+const clientPath = path.join(__dirname, '../../client/dist');
+app.use(express.static(clientPath));
+
+app.get('/api/health', (req: Request, res: Response) => {
+    res.json({ status: 'API is running', ml_service: mlServiceProcess ? 'started' : 'stopped' });
+});
+
+// Handle SPA routing - send index.html for all non-API routes
+app.get('(.*)', (req: Request, res: Response) => {
+    if (req.path.startsWith('/api')) return res.status(404).json({ error: 'Not Found' });
+    res.sendFile(path.join(clientPath, 'index.html'));
 });
 
 io.on('connection', (socket) => {
@@ -40,14 +62,22 @@ io.on('connection', (socket) => {
 let mlServiceProcess: ChildProcess | null = null;
 
 const startMLService = () => {
-    const mlServicePath = path.join(__dirname, '../../ml_service');
+    // In Docker/Linux, look for ml_service relative to the root
+    let mlServicePath = path.join(__dirname, '../../ml_service');
+    
+    // Check if we are running in a built environment
+    if (!fs.existsSync(mlServicePath)) {
+        mlServicePath = path.join(process.cwd(), 'ml_service');
+    }
 
     console.log('🚀 Starting ML service...');
     console.log('📂 ML service path:', mlServicePath);
 
-    mlServiceProcess = spawn('python', ['main.py'], {
+    const pythonCmd = process.env.PYTHON_PATH || (process.platform === 'win32' ? 'python' : 'python3');
+
+    mlServiceProcess = spawn(pythonCmd, ['main.py'], {
         cwd: mlServicePath,
-        stdio: ['pipe', 'pipe', 'pipe'], // Capture stdout and stderr
+        stdio: ['pipe', 'pipe', 'pipe'],
         shell: true
     });
 
