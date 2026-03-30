@@ -17,26 +17,36 @@ class ModelManager:
         if self._initialized:
             return
             
-        print("Loading Shared YOLO Models...")
-        # Standard Model
-        self.yolo_model = YOLO("yolov8n.pt")
-        
-        # Specialized Violence Model (Optional)
-        try:
-            self.violence_model = YOLO("violence.pt")
-            self.has_violence_model = True
-            print("Loaded Custom Violence Model (violence.pt)")
-        except:
-            self.violence_model = None
-            self.has_violence_model = False
-            print("Custom 'violence.pt' not found. Will use fallback logic.")
-            
+        self.yolo_model = None
+        self.violence_model = None
+        self.has_violence_model = False
+        self.load_lock = threading.Lock()
         self._initialized = True
     
     def get_yolo_model(self):
+        if self.yolo_model is None:
+            with self.load_lock:
+                if self.yolo_model is None:
+                    print("🧠 Loading Shared YOLO Model (yolov8n.pt)...")
+                    try:
+                        self.yolo_model = YOLO("yolov8n.pt")
+                        print("✅ Shared YOLO Model Loaded")
+                    except Exception as e:
+                        print(f"❌ Failed to load YOLO model: {e}")
         return self.yolo_model
         
     def get_violence_model(self):
+        if self.violence_model is None:
+            with self.load_lock:
+                if self.violence_model is None:
+                    print("🧠 Loading Custom Violence Model (violence.pt)...")
+                    try:
+                        self.violence_model = YOLO("violence.pt")
+                        self.has_violence_model = True
+                        print("✅ Custom Violence Model Loaded")
+                    except Exception as e:
+                        self.has_violence_model = False
+                        print(f"⚠️ Custom 'violence.pt' not found or failed to load: {e}")
         return self.violence_model
         
     def has_violence(self):

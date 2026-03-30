@@ -49,60 +49,54 @@ class MonitorDetector:
                 print(f"Error in {name} detector inside Monitor: {e}")
         return annotated_frame, all_detections
 
-# Initialize Detectors Safely
-def init_detectors():
-    print("🔍 Initializing AI Detectors...")
+# Lazy Detector Registry
+# Detectors will be initialized only when requested
+_detectors_cache = {}
+_detectors_lock = threading.Lock()
+
+def get_detector(detector_type: str):
+    """Lazy-loads and returns a specific detector."""
+    detector_type = detector_type.lower()
     
-    # Visual Detectors (Lighter)
-    crowd = None
-    violence = None
-    suspicious = None
-    audio = None
-
-    try:
-        crowd = CrowdDetector()
-        print("✅ Crowd Detector Loaded")
-    except Exception as e:
-        print(f"❌ Failed to load Crowd Detector: {e}")
-
-    try:
-        violence = ViolenceDetector()
-        print("✅ Violence Detector Loaded")
-    except Exception as e:
-        print(f"❌ Failed to load Violence Detector: {e}")
-
-    try:
-        suspicious = SuspiciousDetector()
-        print("✅ Suspicious Detector Loaded")
-    except Exception as e:
-        print(f"❌ Failed to load Suspicious Detector: {e}")
-
-    # Audio Detector (Heaviest - TensorFlow)
-    # Check if disabled by env var (for 512MB RAM environments)
-    if os.getenv("DISABLE_AUDIO_DETECTION", "false").lower() == "true":
-        print("⏭️  Audio Detector DISABLED (Lean Mode)")
-    else:
+    with _detectors_lock:
+        if detector_type in _detectors_cache:
+            return _detectors_cache[detector_type]
+        
+        print(f"🔍 Initializing {detector_type} detector...")
+        detector = None
+        
         try:
-            audio = AudioDetector()
-            print("✅ Audio Detector Loaded")
+            if detector_type == "crowd":
+                detector = CrowdDetector()
+            elif detector_type == "violence":
+                detector = ViolenceDetector()
+            elif detector_type == "suspicious":
+                detector = SuspiciousDetector()
+            elif detector_type == "audio":
+                # Check if disabled by env var
+                if os.getenv("DISABLE_AUDIO_DETECTION", "false").lower() == "true":
+                    print("⏭️  Audio Detector DISABLED (Lean Mode)")
+                    return None
+                detector = AudioDetector()
+            elif detector_type == "monitor":
+                # Monitor needs individual visual detectors
+                vis_detectors = {
+                    "crowd": get_detector("crowd"),
+                    "violence": get_detector("violence"),
+                    "suspicious": get_detector("suspicious")
+                }
+                detector = MonitorDetector({k: v for k, v in vis_detectors.items() if v is not None})
+            
+            if detector:
+                print(f"✅ {detector_type.capitalize()} detector loaded successfully")
+                _detectors_cache[detector_type] = detector
+            else:
+                print(f"⚠️ {detector_type} detector returned None")
+                
         except Exception as e:
-            print(f"❌ Failed to load Audio Detector (TensorFlow): {e}")
-
-    base = {
-        "crowd": crowd,
-        "violence": violence,
-        "suspicious": suspicious,
-        "audio": audio
-    }
-
-    # Monitor is a wrapper
-    monitor = MonitorDetector({
-        k: v for k, v in base.items() if v is not None and k != "audio"
-    })
-
-    return {**base, "monitor": monitor}
-
-detectors = init_detectors()
+            print(f"❌ Failed to load {detector_type} detector: {e}")
+            
+        return detector
 
 # Setup directories for video processing
 UPLOAD_DIR = Path("uploads")
@@ -193,11 +187,11 @@ def start_feed(source: str = "0", type: str = "crowd"):
     """Starts the video feed generation."""
     with stream_state.lock:
         stream_state.source = source
-        stream_state.active_detector = detectors.get(type.lower())
+        stream_state.active_detector = get_detector(type)
         stream_state.is_running = True
         stream_state.session_detections = []  # Clear previous session
         stream_state.snapshot_url = None
-    print(f"[ML Service] Feed Started. Type: {type}, Detector: {stream_state.active_detector}")
+    print(f"[ML Service] Feed Started. Type: {type}")
     return {"status": "Feed Started", "source": source, "type": type}
 
 @app.post("/stop_feed")
@@ -235,6 +229,10 @@ async def analyze_frame(image: UploadFile = File(...)):
         # Run active detector logic
         annotated_frame = frame.copy()
         detections = []
+        
+        # Ensure we have a detector for analyze_frame (default to monitor or crowd if none active)
+        if not stream_state.active_detector:
+            stream_state.active_detector = get_detector("monitor")
         
         if stream_state.active_detector:
             try:
