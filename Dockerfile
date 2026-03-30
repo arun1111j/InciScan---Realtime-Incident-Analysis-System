@@ -9,17 +9,10 @@ RUN npm run build
 # --- Stage 2: Final Image ---
 FROM python:3.10-slim
 
-# Install Node.js
-RUN apt-get update && apt-get install -y \
+# Install Node.js and System Dependencies in one layer
+RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
     curl \
     gnupg \
-    && curl -fsSL https://deb.nodesource.com/setup_18.x | bash - \
-    && apt-get install -y nodejs \
-    && apt-get clean \
-    && rm -rf /var/lib/apt/lists/*
-
-# Install System Dependencies for OpenCV and PyAudio
-RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
     libgl1 \
     libglib2.0-0 \
     portaudio19-dev \
@@ -27,6 +20,8 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-ins
     gcc \
     g++ \
     make \
+    && curl -fsSL https://deb.nodesource.com/setup_18.x | bash - \
+    && apt-get install -y nodejs \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
@@ -34,12 +29,14 @@ WORKDIR /app
 
 # Install ML Service Dependencies
 COPY ml_service/requirements.txt ./ml_service/
-RUN pip install --no-cache-dir -r ml_service/requirements.txt
+# Install Torch CPU first to prevent other packages from pulling GPU versions
+RUN pip install --no-cache-dir torch torchvision --index-url https://download.pytorch.org/whl/cpu \
+    && pip install --no-cache-dir -r ml_service/requirements.txt
 
 # Install Backend Dependencies
 COPY server/package*.json ./server/
 WORKDIR /app/server
-RUN npm install
+RUN npm install --omit=dev
 COPY server/prisma ./prisma
 RUN npx prisma generate
 COPY server/ ./
