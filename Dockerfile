@@ -19,8 +19,8 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Install System Dependencies for OpenCV and PyAudio
-RUN apt-get update && apt-get install -y \
-    libgl1-mesa-glx \
+RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+    libgl1 \
     libglib2.0-0 \
     portaudio19-dev \
     libasound2-dev \
