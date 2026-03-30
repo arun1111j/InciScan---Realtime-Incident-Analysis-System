@@ -6,18 +6,27 @@ import pyaudio
 import numpy as np
 from .base_detector import BaseDetector
 
-try:
-    import tensorflow as tf
-    import tensorflow_hub as hub
-    TF_AVAILABLE = True
-except ImportError:
-    TF_AVAILABLE = False
-    print("Warning: TensorFlow not found. Audio Detection will be disabled.")
+TF_AVAILABLE = None # Will check on-demand
+TF_HUB = None
 
 class AudioDetector(BaseDetector):
     def __init__(self):
         super().__init__()
-        self.backend_url = "http://localhost:5000/api/incidents"
+        self.backend_url = "http://127.0.0.1:5000/api/incidents"
+        self._ensure_tf_loaded()
+
+    def _ensure_tf_loaded(self):
+        global TF_AVAILABLE, TF_HUB
+        if TF_AVAILABLE is None:
+            try:
+                import tensorflow as tf
+                import tensorflow_hub as hub
+                TF_HUB = hub
+                TF_AVAILABLE = True
+                print("✅ Audio AI (TensorFlow) loaded lazily.")
+            except ImportError:
+                TF_AVAILABLE = False
+                print("⚠️ Audio AI (TensorFlow) could not be loaded.")
         
         if not TF_AVAILABLE:
             print("AudioDetector: TensorFlow dependencies missing. Please install 'tensorflow-cpu' and 'tensorflow_hub'.")

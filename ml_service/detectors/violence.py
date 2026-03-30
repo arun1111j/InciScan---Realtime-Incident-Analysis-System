@@ -2,14 +2,13 @@ import cv2
 import time
 import requests
 import numpy as np
-from ultralytics import YOLO
 from .base_detector import BaseDetector
 from model_manager import ModelManager
 
 class ViolenceDetector(BaseDetector):
     def __init__(self):
         super().__init__()
-        self.backend_url = "http://localhost:5000/api/incidents"
+        self.backend_url = "http://127.0.0.1:5000/api/incidents"
         
         # Use Shared Model Manager
         manager = ModelManager()

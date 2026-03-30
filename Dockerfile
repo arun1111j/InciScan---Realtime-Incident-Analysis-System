@@ -55,6 +55,7 @@ COPY --from=client-build /app/client/dist ./client/dist
 # Environment Variables
 ENV NODE_ENV=production
 ENV PORT=5000
+ENV PYTHONUNBUFFERED=1
 ENV PYTHON_PATH=python3
 
 # Expose Port

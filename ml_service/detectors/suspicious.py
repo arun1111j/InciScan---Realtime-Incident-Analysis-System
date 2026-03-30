@@ -1,4 +1,3 @@
-from ultralytics import YOLO
 import cv2
 import time
 import requests
@@ -10,7 +9,7 @@ class SuspiciousDetector(BaseDetector):
         super().__init__()
         # Use Shared Model Manager
         self.model = ModelManager().get_yolo_model() 
-        self.backend_url = "http://localhost:5000/api/incidents"
+        self.backend_url = "http://127.0.0.1:5000/api/incidents"
         self.track_history = {} # track_id -> {start_time, last_seen_time, alerted}
         self.loitering_threshold = 10 # seconds
         self.cleanup_interval = 60 # seconds

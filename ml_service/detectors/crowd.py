@@ -1,4 +1,3 @@
-from ultralytics import YOLO
 import cv2
 import time
 import requests
@@ -10,7 +9,7 @@ class CrowdDetector(BaseDetector):
         super().__init__()
         # Use Shared Model Manager
         self.model = ModelManager().get_yolo_model()
-        self.backend_url = "http://localhost:5000/api/incidents" # Node.js Backend
+        self.backend_url = "http://127.0.0.1:5000/api/incidents" # Node.js Backend
         self.frame_skip = 5 # Process every 5th frame
         self.location = {"latitude": 40.7128, "longitude": -74.006} # Default
 
