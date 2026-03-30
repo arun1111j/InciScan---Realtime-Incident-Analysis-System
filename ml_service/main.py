@@ -5,10 +5,13 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 import uvicorn
 import cv2
+import numpy as np
 import threading
 import time
 import shutil
 from pathlib import Path
+import base64
+import io
 
 # Import Detectors
 from detectors.crowd import CrowdDetector
@@ -213,6 +216,52 @@ def session_report():
             "detections": list(stream_state.session_detections),
             "snapshot_url": stream_state.snapshot_url
         }
+
+@app.post("/analyze_frame")
+async def analyze_frame(image: UploadFile = File(...)):
+    """
+    Analyze a single frame from the user's webcam.
+    Returns the annotated frame (base64) and detection list.
+    """
+    try:
+        # Read image
+        contents = await image.read()
+        nparr = np.frombuffer(contents, np.uint8)
+        frame = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+        
+        if frame is None:
+            return {"error": "Invalid image data"}
+
+        # Run active detector logic
+        annotated_frame = frame.copy()
+        detections = []
+        
+        if stream_state.active_detector:
+            try:
+                annotated_frame, detections = stream_state.active_detector.detect(frame)
+                
+                # Update session detections for reporting
+                if len(detections) > 0:
+                    current_time = time.strftime("%Y-%m-%d %H:%M:%S")
+                    with stream_state.lock:
+                        for d in detections:
+                            d['timestamp'] = current_time
+                        stream_state.session_detections.extend(detections)
+            except Exception as e:
+                print(f"Error during single frame detection: {e}")
+
+        # Encode annotated frame to Base64
+        _, buffer = cv2.imencode('.jpg', annotated_frame)
+        base64_image = base64.b64encode(buffer).decode('utf-8')
+
+        return {
+            "success": True,
+            "detections": detections,
+            "annotated_image": f"data:image/jpeg;base64,{base64_image}"
+        }
+    except Exception as e:
+        print(f"Analyze frame error: {e}")
+        return {"error": str(e), "detections": []}
 
 @app.get("/video_feed")
 def video_feed():

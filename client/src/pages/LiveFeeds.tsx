@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Play, Square, FileText } from 'lucide-react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -6,26 +6,107 @@ import autoTable from 'jspdf-autotable';
 const LiveFeeds = () => {
     const [isFeeding, setIsFeeding] = useState(false);
     const [detectorType, setDetectorType] = useState('crowd');
+    const [processedImage, setProcessedImage] = useState<string | null>(null);
+    const [isStreaming, setIsStreaming] = useState(false);
+    
+    const videoRef = useRef<HTMLVideoElement>(null);
+    const canvasRef = useRef<HTMLCanvasElement>(null);
+    const streamRef = useRef<MediaStream | null>(null);
+    const frameTimerRef = useRef<NodeJS.Timeout | null>(null);
 
     const handleStartFeed = async () => {
         try {
+            // 1. Tell server to prepare a specific detector
             await fetch(`/ml/start_feed?type=${detectorType}`, {
                 method: 'POST'
             });
+
+            // 2. Start local webcam
+            const stream = await navigator.mediaDevices.getUserMedia({ 
+                video: { width: 640, height: 480, frameRate: 15 } 
+            });
+            
+            if (videoRef.current) {
+                videoRef.current.srcObject = stream;
+                streamRef.current = stream;
+            }
+
             setIsFeeding(true);
+            setIsStreaming(true);
+            console.log("Webcam started and server detector initialized.");
         } catch (error) {
             console.error('Failed to start feed:', error);
+            alert("Could not access webcam. Please ensure you've given permission.");
         }
     };
 
     const handleStopFeed = async () => {
         try {
             await fetch('/ml/stop_feed', { method: 'POST' });
+            
+            if (streamRef.current) {
+                streamRef.current.getTracks().forEach(track => track.stop());
+                streamRef.current = null;
+            }
+            
+            if (frameTimerRef.current) {
+                clearInterval(frameTimerRef.current);
+                frameTimerRef.current = null;
+            }
+
             setIsFeeding(false);
+            setIsStreaming(false);
+            setProcessedImage(null);
         } catch (error) {
             console.error('Failed to stop feed:', error);
         }
     };
+
+    // Effect to handle the streaming loop
+    useEffect(() => {
+        if (isStreaming && isFeeding) {
+            console.log("Starting frame capture loop...");
+            
+            frameTimerRef.current = setInterval(async () => {
+                if (!videoRef.current || !canvasRef.current) return;
+
+                const canvas = canvasRef.current;
+                const video = videoRef.current;
+                const context = canvas.getContext('2d');
+                
+                if (context && video.readyState === video.HAVE_ENOUGH_DATA) {
+                    canvas.width = video.videoWidth;
+                    canvas.height = video.videoHeight;
+                    context.drawImage(video, 0, 0, canvas.width, canvas.height);
+                    
+                    // Convert to blob and send to server
+                    canvas.toBlob(async (blob) => {
+                        if (!blob) return;
+                        
+                        const formData = new FormData();
+                        formData.append('image', blob, 'frame.jpg');
+                        
+                        try {
+                            const response = await fetch('/ml/analyze_frame', {
+                                method: 'POST',
+                                body: formData
+                            });
+                            const result = await response.json();
+                            if (result.success) {
+                                setProcessedImage(result.annotated_image);
+                            }
+                        } catch (err) {
+                            console.error("Frame upload failed:", err);
+                        }
+                    }, 'image/jpeg', 0.6); // Lower quality (0.6) to save RAM/bandwith
+                }
+            }, 500); // 2 FPS to stay within Free Tier limits
+        }
+        
+        return () => {
+            if (frameTimerRef.current) clearInterval(frameTimerRef.current);
+        };
+    }, [isStreaming, isFeeding]);
 
     const handleDownloadReport = async () => {
         try {
@@ -193,14 +274,16 @@ const LiveFeeds = () => {
 
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                     <div className="bg-gray-900 rounded-xl border border-gray-700 overflow-hidden h-96 relative group flex items-center justify-center">
+                        {/* Hidden elements for processing */}
+                        <video ref={videoRef} autoPlay playsInline muted className="hidden" />
+                        <canvas ref={canvasRef} className="hidden" />
+
                         {isFeeding ? (
                             <img
-                                src={`/ml/video_feed?t=${Date.now()}`}
-                                alt="Camera 1"
-                                className="w-full h-full object-cover"
-                                onError={(e) => {
-                                    (e.target as HTMLImageElement).style.display = 'none';
-                                }}
+                                src={processedImage || ''}
+                                alt="AI Live Feed"
+                                className={`w-full h-full object-cover transition-opacity duration-300 ${processedImage ? 'opacity-100' : 'opacity-30'}`}
+                                style={{ display: processedImage ? 'block' : 'none' }}
                             />
                         ) : (
                             <div className="text-center space-y-3">
@@ -210,7 +293,16 @@ const LiveFeeds = () => {
                                 <p className="text-gray-500 font-medium">Feed Offline</p>
                             </div>
                         )}
-                        <div className="absolute bottom-4 left-4 bg-black/60 px-3 py-1 rounded text-white text-sm">Main Gate</div>
+                        
+                        {isFeeding && !processedImage && (
+                            <div className="absolute inset-0 flex items-center justify-center bg-black/40">
+                                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white"></div>
+                            </div>
+                        )}
+
+                        <div className="absolute bottom-4 left-4 bg-black/60 px-3 py-1 rounded text-white text-sm">
+                            {processedImage ? 'Local Camera via Cloud AI' : 'Main Gate'}
+                        </div>
                         {isFeeding && (
                             <div className="absolute top-4 right-4 bg-red-600 px-2 py-1 rounded text-white text-xs animate-pulse">LIVE</div>
                         )}
