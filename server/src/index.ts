@@ -26,7 +26,7 @@ app.use(express.json());
 
 // Proxy requests to ML Service
 app.use('/ml', createProxyMiddleware({
-    target: 'http://localhost:8000',
+    target: 'http://127.0.0.1:8000',
     changeOrigin: true,
     pathRewrite: {
         '^/ml': '', // remove /ml prefix when sending to FastAPI
@@ -72,6 +72,12 @@ const startMLService = () => {
 
     console.log('🚀 Starting ML service...');
     console.log('📂 ML service path:', mlServicePath);
+    
+    if (!fs.existsSync(mlServicePath)) {
+        console.error('❌ CRITICAL: ML service directory not found!');
+    } else {
+        console.log('📂 Directory contents:', fs.readdirSync(mlServicePath));
+    }
 
     const pythonCmd = process.env.PYTHON_PATH || (process.platform === 'win32' ? 'python' : 'python3');
 
