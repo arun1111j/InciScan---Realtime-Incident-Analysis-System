@@ -139,10 +139,14 @@ const PORT = process.env.PORT || 5000;
 httpServer.listen(PORT, () => {
     console.log(`✅ InciScan Server is running on port ${PORT}`);
     console.log(`📡 Socket.IO ready for real-time updates`);
+    console.log(`🚀 Production Mode: ${process.env.NODE_ENV === 'production'}`);
     console.log('');
 
-    // Start ML service after server is up
+    // Start ML service in the background after server is up to avoid blocking Render health checks
     setTimeout(() => {
+        if (process.env.NODE_ENV === 'production') {
+            console.log('🤖 Lean Mode: Prioritizing Visual detection over Audio to save RAM...');
+        }
         startMLService();
     }, 1000);
 });

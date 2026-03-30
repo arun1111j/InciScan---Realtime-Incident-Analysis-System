@@ -16,6 +16,7 @@ from detectors.violence import ViolenceDetector
 from detectors.suspicious import SuspiciousDetector
 from detectors.audio import AudioDetector
 from video_analyzer import VideoAnalyzer
+import os
 
 app = FastAPI()
 
@@ -45,22 +46,60 @@ class MonitorDetector:
                 print(f"Error in {name} detector inside Monitor: {e}")
         return annotated_frame, all_detections
 
-# Initialize Detectors
-base_detectors = {
-    "crowd": CrowdDetector(),
-    "violence": ViolenceDetector(),
-    "suspicious": SuspiciousDetector(),
-    "audio": AudioDetector()
-}
+# Initialize Detectors Safely
+def init_detectors():
+    print("🔍 Initializing AI Detectors...")
+    
+    # Visual Detectors (Lighter)
+    crowd = None
+    violence = None
+    suspicious = None
+    audio = None
 
-detectors = {
-    **base_detectors,
-    "monitor": MonitorDetector({
-        "crowd": base_detectors["crowd"],
-        "violence": base_detectors["violence"],
-        "suspicious": base_detectors["suspicious"]
+    try:
+        crowd = CrowdDetector()
+        print("✅ Crowd Detector Loaded")
+    except Exception as e:
+        print(f"❌ Failed to load Crowd Detector: {e}")
+
+    try:
+        violence = ViolenceDetector()
+        print("✅ Violence Detector Loaded")
+    except Exception as e:
+        print(f"❌ Failed to load Violence Detector: {e}")
+
+    try:
+        suspicious = SuspiciousDetector()
+        print("✅ Suspicious Detector Loaded")
+    except Exception as e:
+        print(f"❌ Failed to load Suspicious Detector: {e}")
+
+    # Audio Detector (Heaviest - TensorFlow)
+    # Check if disabled by env var (for 512MB RAM environments)
+    if os.getenv("DISABLE_AUDIO_DETECTION", "false").lower() == "true":
+        print("⏭️  Audio Detector DISABLED (Lean Mode)")
+    else:
+        try:
+            audio = AudioDetector()
+            print("✅ Audio Detector Loaded")
+        except Exception as e:
+            print(f"❌ Failed to load Audio Detector (TensorFlow): {e}")
+
+    base = {
+        "crowd": crowd,
+        "violence": violence,
+        "suspicious": suspicious,
+        "audio": audio
+    }
+
+    # Monitor is a wrapper
+    monitor = MonitorDetector({
+        k: v for k, v in base.items() if v is not None and k != "audio"
     })
-}
+
+    return {**base, "monitor": monitor}
+
+detectors = init_detectors()
 
 # Setup directories for video processing
 UPLOAD_DIR = Path("uploads")
@@ -104,7 +143,12 @@ def generate_frames():
         # Run active detector logic
         annotated_frame = frame
         if stream_state.active_detector:
-            annotated_frame, detections = stream_state.active_detector.detect(frame)
+            try:
+                annotated_frame, detections = stream_state.active_detector.detect(frame)
+            except Exception as e:
+                print(f"Error during detection frame processing: {e}")
+                detections = []
+                
             if len(detections) > 0:
                 print(f"[ML Debug] Detections found: {len(detections)}")
                 current_time = time.strftime("%Y-%m-%d %H:%M:%S")
