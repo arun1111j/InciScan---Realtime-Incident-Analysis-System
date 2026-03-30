@@ -11,5 +11,6 @@ server/dist
 .env
 Dockerfile
 docker-compose.yml
-*.pt
+# Keep our model weights!
 !ml_service/yolov8n.pt
+!yolov8n.pt

@@ -48,7 +48,6 @@ RUN npm run build
 # Copy Source Code
 WORKDIR /app
 COPY ml_service ./ml_service
-COPY yolov8n.pt ./ml_service/yolov8n.pt
 
 # Copy Built Frontend
 RUN mkdir -p client/dist
