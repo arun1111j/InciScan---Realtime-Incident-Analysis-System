@@ -1,4 +1,4 @@
-import React from 'react';
+// React import not needed in modern versions with JSX Transform
 import { Navigate, Outlet } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 

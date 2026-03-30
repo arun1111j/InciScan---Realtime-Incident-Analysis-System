@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState, ChangeEvent, DragEvent } from 'react';
 import { Upload, Download, Loader } from 'lucide-react';
 
 const Analytics = () => {
